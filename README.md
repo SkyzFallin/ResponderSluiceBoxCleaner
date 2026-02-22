@@ -4,7 +4,7 @@
   <img src="rsbc_logo.svg" alt="RSBC - Responder Sluice Box Cleaner" width="760"/>
 </p>
 
-Like panning for gold — RSBC sifts through the pile of **[Responder](https://github.com/SpiderLabs/Responder)** hash captures, filters out the duplicates, and leaves you with clean nuggets ready to crack.
+Like panning for gold, but hashes — RSBC sifts through the pile of **[Responder](https://github.com/SpiderLabs/Responder)** hash captures, filters out the duplicates, and leaves you with clean nuggets ready to crack.
 
 **Author:** [SkyzFallin](https://github.com/SkyzFallin)
 
