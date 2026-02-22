@@ -1,74 +1,76 @@
-# YesNoVNC
+# ResponderSluiceBoxCleaner (RSBC)
 
-One-command noVNC setup for Kali Linux. Get browser-based remote desktop access in under a minute — over HTTPS.
+<p align="center">
+  <img src="rsbc_logo.svg" alt="RSBC - Responder Sluice Box Cleaner" width="760"/>
+</p>
+
+Like panning for gold — RSBC sifts through the pile of Responder (https://github.com/SpiderLabs/Responder) hash captures, filters out the duplicates, and leaves you with clean nuggets ready to crack.
 
 **Author:** [SkyzFallin](https://github.com/SkyzFallin)
 
-## Quick Start
-
-```bash
-git clone https://github.com/SkyzFallin/YesNoVNC.git
-cd YesNoVNC
-sudo ./install-novnc.sh
-```
-
-The installer will prompt you to set a VNC password — anything except `"password"`. It then generates a self-signed TLS certificate so the session is served over HTTPS.
-
-Then:
-```bash
-start-novnc     # start VNC server + noVNC proxy (HTTPS)
-stop-novnc      # stop everything
-```
-
-Access via browser: `https://localhost:6080/vnc.html`
-
-> **Browser warning:** You'll see a self-signed certificate warning on first visit. Accept/trust it once and it won't recur for this host.
-
 ## What It Does
+- Extracts all captured hash files from Responder's log directory
+- Deduplicates by username + hash type (keeps one of each type per user)
+- Preserves computer account hashes (e.g. `WORKSTATION$`) — never filtered or discarded
+- Prefixes every output line with `[HASH_TYPE]` so you can immediately identify NTLMv1 vs NTLMv2-SSP without tracing back to source files
+- Appends to an existing `responder_hashes.txt` if one is present — re-runs accumulate new captures without ever producing duplicates
+- Outputs a single sorted `responder_hashes.txt` ready for Hashcat/John
+- Archives processed files into a date-stamped folder for history tracking
 
-The install script handles everything:
+## Quick Start
+```bash
+git clone https://github.com/SkyzFallin/ResponderSluiceBoxCleaner.git
+cd ResponderSluiceBoxCleaner
+chmod +x rsbc.sh
+./rsbc.sh
+```
 
-- Installs dependencies (`tightvncserver`, `git`, `xfce4`, `dbus-x11`, `openssl`)
-- Prompts for a VNC password (enforces non-default, minimum 6 characters)
-- Generates a self-signed TLS certificate at `/etc/novnc-certs/novnc.pem`
-- Sets up VNC xstartup (with the blank screen fix)
-- Clones noVNC to `/opt/noVNC`
-- Installs `start-novnc` and `stop-novnc` commands to `/usr/local/bin`
+Run Responder, run RSBC, run Responder again, run RSBC again — it just keeps building the master list cleanly.
 
-## Details
+## Output
+| File/Folder | Location | Description |
+|---|---|---|
+| `responder_hashes.txt` | Current working directory | One unique hash per line, prefixed with `[HASH_TYPE]`, sorted by username. Appended to on subsequent runs. |
+| `YYYY-MM-DD/` | `/usr/share/responder/logs/` | Archive folder with processed hash files from that run |
 
-| Item | Value |
-|------|-------|
-| VNC Display | `:1` |
-| VNC Port | `5901` |
-| noVNC Port | `6080` (HTTPS) |
-| Resolution | `1920x1080` |
-| Desktop | XFCE4 |
-| TLS Certificate | `/etc/novnc-certs/novnc.pem` (self-signed, 10 years) |
+### Example output
+```
+[HTTP-NTLMv1]    FILESERVER$::CORP:aabbccdd:...
+[SMB-NTLMv2-SSP] JSMITH::CORP:aabbccdd:...
+[SMB-NTLMv2-SSP] WORKSTATION$::CORP:aabbccdd:...
+[LDAP-NTLMv2]    ADMINISTRATOR::CORP:aabbccdd:...
+```
 
-## Troubleshooting
+## Deduplication Logic
+Hashes are deduplicated by **username + hash type**. If a user has both an NTLMv1 and NTLMv2 capture, both are kept. Duplicate captures of the same hash type for the same user are removed (only the first is kept).
 
-**Blank screen:** The install script already applies the fix (`unset SESSION_MANAGER` / `unset DBUS_SESSION_BUS_ADDRESS` in `~/.vnc/xstartup`). If you still get a blank screen, restart with `stop-novnc && start-novnc`.
+On subsequent runs, existing entries in `responder_hashes.txt` are pre-loaded into the deduplication index before scanning begins — so re-running after a new Responder session will only add genuinely new captures.
 
-**Can't connect on port 6080:** Make sure you're using `https://` not `http://`. Check that websockify is running: `ps aux | grep websockify`. Check logs: `cat /tmp/novnc.log`.
+## Supported Hash Types
+Handles all Responder hash file formats:
+- NTLMv1 / NTLMv2-SSP
+- HTTP / SMB / LDAP / MSSQL
+- Any other `.txt` hash captures in the Responder logs directory
 
-**Browser certificate warning:** This is expected with a self-signed cert. Click "Advanced" → "Accept the Risk and Continue" (Firefox) or "Proceed to localhost" (Chrome). You only need to do this once per browser.
+## Notes
+- Session and config `.log` files are never touched
+- Only top-level `.txt` files in the logs directory are processed — previously archived folders won't be re-scanned
+- Computer account hashes (usernames ending in `$`) are fully preserved and archived alongside user hashes
+- Running multiple times creates separate date-stamped archive folders
+- Default Responder logs path: `/usr/share/responder/logs`
 
-**Change resolution:** Edit `start_novnc.sh` and change the `-geometry` value (e.g., `2560x1440`, `3840x2160`).
-
-**Change VNC password:** Run `vncpasswd`, then `stop-novnc && start-novnc`.
-
-**Regenerate TLS certificate:** Delete `/etc/novnc-certs/novnc.pem` and re-run `sudo ./install-novnc.sh`.
+## Changelog
+- **v1.2** — Append mode: if `responder_hashes.txt` already exists, existing entries are pre-loaded so re-runs never duplicate. Output is fully re-sorted after each run.
+- **v1.1** — Computer account hashes explicitly preserved. Added `[HASH_TYPE]` prefix to all output lines.
+- **v1.0** — Initial release.
 
 ## Credits
 
-YesNoVNC is a setup and orchestration wrapper around these excellent projects:
+RSBC is a post-capture processing tool built around the output of these projects:
 
-- **[noVNC](https://github.com/novnc/noVNC)** — The browser-based VNC client (HTML5/WebSockets). Licensed under [MPL-2.0](https://github.com/novnc/noVNC/blob/master/LICENSE.txt).
-- **[websockify](https://github.com/novnc/websockify)** — The WebSocket-to-TCP proxy bundled with noVNC (`novnc_proxy`). Handles the TLS termination for HTTPS. Licensed under [LGPL-3.0](https://github.com/novnc/websockify/blob/master/LICENSE.txt).
-- **[TightVNC](https://www.tightvnc.com/)** (`tightvncserver`) — The VNC server running on the host.
-- **[XFCE](https://xfce.org/)** — The lightweight desktop environment served over VNC.
+- **[Responder](https://github.com/SpiderLabs/Responder)** — The LLMNR/NBT-NS/mDNS poisoner that captures the hashes RSBC processes. By Laurent Gaffié / SpiderLabs. Licensed under [GPL-3.0](https://github.com/SpiderLabs/Responder/blob/master/LICENSE).
+- **[Hashcat](https://hashcat.net/hashcat/)** — The GPU-accelerated password recovery tool RSBC's output is formatted for. Licensed under [MIT](https://github.com/hashcat/hashcat/blob/master/LICENSE.txt).
+- **[John the Ripper](https://www.openwall.com/john/)** — Alternative password cracker also compatible with RSBC's output format. Licensed under [GPL-2.0](https://github.com/openwall/john/blob/bleeding-jumbo/doc/LICENSE).
 
 ## License
-
 GPL-3.0

@@ -175,7 +175,7 @@
     font-size="9.5"
     font-weight="700"
     text-anchor="middle"
-    fill="#6b7280">MIT</text>
+    fill="#6b7280">GPL-3.0</text>
 
   <!-- bash badge -->
   <rect x="311" y="152" width="40" height="16" rx="3" fill="#1f2937" stroke="#374151" stroke-width="1"/>

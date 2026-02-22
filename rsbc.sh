@@ -60,7 +60,7 @@
 #          Added [HASH_TYPE] prefix to each output line for clear identification
 #          of NTLMv1, NTLMv2-SSP, etc. without needing to trace back to source files.
 #
-# License: MIT
+# License: GPL-3.0
 # Repository: https://github.com/SkyzFallin/ResponderSluiceBoxCleaner
 #
 # ===========================================================================
