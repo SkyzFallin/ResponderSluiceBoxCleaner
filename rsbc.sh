@@ -2,8 +2,8 @@
 #
 # ResponderSluiceBoxCleaner (RSBC)
 # Author: SkyzFallin
-# Date: 2026-02-09
-# Version: 1.2
+# Date: 2026-02-28
+# Version: 1.3
 #
 # Project: ResponderSluiceBoxCleaner (RSBC)
 #   Like panning for gold, RSBC sifts through the pile of Responder hash
@@ -52,6 +52,8 @@
 #     archive folders for easy history tracking.
 #
 # Changelog:
+#   v1.3 - Hardened runtime behavior with strict mode and private file permissions.
+#          Added dependency checks, safer parsing, and unique sorting for resilience.
 #   v1.2 - Append mode: if responder_hashes.txt already exists, existing
 #          username+hash_type combos are pre-loaded into SEEN so re-runs
 #          accumulate new captures without ever duplicating old ones.
@@ -65,6 +67,11 @@
 #
 # ===========================================================================
 
+set -euo pipefail
+
+# Captured hashes are sensitive material; keep output private by default.
+umask 077
+
 # ----- Configuration -----
 
 # Path to Responder's log directory where captured hashes are stored
@@ -75,6 +82,7 @@ OUTPUT_FILE="$(pwd)/responder_hashes.txt"
 
 # Temp file for building the hash list before final sort
 TEMP_FILE=$(mktemp)
+trap 'rm -f "$TEMP_FILE"' EXIT
 
 # Archive directory named with today's date (YYYY-MM-DD format)
 ARCHIVE_DIR="${RESPONDER_LOGS}/$(date +%Y-%m-%d)"
@@ -87,12 +95,20 @@ if [ ! -d "$RESPONDER_LOGS" ]; then
     exit 1
 fi
 
+# Validate required commands are present
+for required_cmd in find sort mv mkdir mktemp; do
+    if ! command -v "$required_cmd" >/dev/null 2>&1; then
+        echo "[!] Missing required command: $required_cmd"
+        exit 1
+    fi
+done
+
 # Find all .txt hash capture files at the top level only (maxdepth 1)
 # This prevents re-processing files that were already archived into date folders
-HASH_FILES=$(find "$RESPONDER_LOGS" -maxdepth 1 -type f -name "*.txt" 2>/dev/null)
+mapfile -t HASH_FILES < <(find "$RESPONDER_LOGS" -maxdepth 1 -type f -name "*.txt" 2>/dev/null)
 
 # Exit if no hash files are found
-if [ -z "$HASH_FILES" ]; then
+if [ "${#HASH_FILES[@]}" -eq 0 ]; then
     echo "[!] No hash files found in $RESPONDER_LOGS"
     echo "    (Only .txt hash capture files are processed; session .log files are skipped)"
     exit 1
@@ -125,11 +141,15 @@ if [ -f "$OUTPUT_FILE" ]; then
         [[ -z "$existing_line" || "$existing_line" =~ ^# ]] && continue
 
         # Extract hash type from the [HASH_TYPE] prefix
-        EXISTING_HASH_TYPE=$(echo "$existing_line" | grep -oP '(?<=^\[)[^\]]+')
+        EXISTING_HASH_TYPE=${existing_line#[}
+        EXISTING_HASH_TYPE=${EXISTING_HASH_TYPE%%]*}
         # Extract the raw hash portion (everything after "[HASH_TYPE] ")
-        EXISTING_HASH=$(echo "$existing_line" | sed -E 's/^\[[^]]+\] //')
+        EXISTING_HASH=${existing_line#*] }
         # Extract username from the raw hash
-        EXISTING_USERNAME=$(echo "$EXISTING_HASH" | cut -d':' -f1)
+        EXISTING_USERNAME=${EXISTING_HASH%%:*}
+
+        # Ignore malformed lines that do not match expected format.
+        [[ -z "$EXISTING_HASH_TYPE" || -z "$EXISTING_USERNAME" ]] && continue
 
         EXISTING_KEY="${EXISTING_USERNAME}::${EXISTING_HASH_TYPE}"
         SEEN[$EXISTING_KEY]=1
@@ -148,6 +168,7 @@ while IFS= read -r file; do
     # Responder names files like: SMB-NTLMv2-SSP-10.0.0.1.txt, HTTP-NTLMv1-10.0.0.1.txt
     # We strip the trailing IP address to isolate the hash type (e.g., SMB-NTLMv2-SSP)
     HASH_TYPE=$(echo "$BASENAME" | sed -E 's/-[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+.*$//' | sed -E 's/-[0-9a-fA-F:]+$//')
+    [[ -z "$HASH_TYPE" ]] && HASH_TYPE="UNKNOWN"
 
     # Read each line (hash entry) from the current file
     while IFS= read -r line; do
@@ -161,7 +182,7 @@ while IFS= read -r file; do
         # Extract the username from the hash line
         # Responder hash format: USERNAME::DOMAIN:challenge:response:...
         # Computer accounts appear as HOSTNAME$::DOMAIN:... and are kept as-is
-        USERNAME=$(echo "$line" | cut -d':' -f1)
+        USERNAME=${line%%:*}
 
         # Track computer account captures separately for summary reporting
         # Computer accounts have usernames ending in $ (e.g., WORKSTATION$)
@@ -177,7 +198,7 @@ while IFS= read -r file; do
 
         # Only write this hash if we haven't seen this username+type combo before
         # Computer account hashes are never skipped — the $ suffix is part of the key
-        if [ -z "${SEEN[$DEDUP_KEY]}" ]; then
+        if [ -z "${SEEN[$DEDUP_KEY]-}" ]; then
             SEEN[$DEDUP_KEY]=1
 
             # Prefix each output line with the hash type in brackets for easy identification.
@@ -192,7 +213,7 @@ while IFS= read -r file; do
 
     done < "$file"
 
-done <<< "$HASH_FILES"
+done < <(printf '%s\n' "${HASH_FILES[@]}")
 
 # ----- Output -----
 
@@ -200,14 +221,11 @@ done <<< "$HASH_FILES"
 # then sort the combined set by username (field 2, after the [HASH_TYPE] prefix)
 # and overwrite the output file. This produces a single fully-sorted master list.
 if [ -f "$OUTPUT_FILE" ]; then
-    cat "$OUTPUT_FILE" "$TEMP_FILE" | sort -k2,2 > "${OUTPUT_FILE}.new"
+    cat "$OUTPUT_FILE" "$TEMP_FILE" | sort -u -k2,2 > "${OUTPUT_FILE}.new"
 else
-    sort -k2,2 "$TEMP_FILE" > "${OUTPUT_FILE}.new"
+    sort -u -k2,2 "$TEMP_FILE" > "${OUTPUT_FILE}.new"
 fi
 mv "${OUTPUT_FILE}.new" "$OUTPUT_FILE"
-
-# Clean up the temp file
-rm -f "$TEMP_FILE"
 
 # ----- Archive Processed Files -----
 
@@ -220,7 +238,7 @@ MOVED=0
 while IFS= read -r file; do
     mv "$file" "$ARCHIVE_DIR/"
     MOVED=$((MOVED + 1))
-done <<< "$HASH_FILES"
+done < <(printf '%s\n' "${HASH_FILES[@]}")
 
 # ----- Summary -----
 

@@ -60,6 +60,7 @@ Handles all Responder hash file formats:
 - Default Responder logs path: `/usr/share/responder/logs`
 
 ## Changelog
+- **v1.3** — Security and reliability hardening: strict Bash mode, private default output permissions (`umask 077`), dependency validation, more robust parsing, and unique sorting safeguards.
 - **v1.2** — Append mode: if `responder_hashes.txt` already exists, existing entries are pre-loaded so re-runs never duplicate. Output is fully re-sorted after each run.
 - **v1.1** — Computer account hashes explicitly preserved. Added `[HASH_TYPE]` prefix to all output lines.
 - **v1.0** — Initial release.
@@ -71,6 +72,9 @@ RSBC is a post-capture processing tool built around the output of these projects
 - **[Responder](https://github.com/SpiderLabs/Responder)** — The LLMNR/NBT-NS/mDNS poisoner that captures the hashes RSBC processes. By Laurent Gaffié / SpiderLabs. Licensed under [GPL-3.0](https://github.com/SpiderLabs/Responder/blob/master/LICENSE).
 - **[Hashcat](https://hashcat.net/hashcat/)** — The GPU-accelerated password recovery tool RSBC's output is formatted for. Licensed under [MIT](https://github.com/hashcat/hashcat/blob/master/LICENSE.txt).
 - **[John the Ripper](https://www.openwall.com/john/)** — Alternative password cracker also compatible with RSBC's output format. Licensed under [GPL-2.0](https://github.com/openwall/john/blob/bleeding-jumbo/doc/LICENSE).
+
+## Project Hygiene
+- See `AUDIT.md` for a practical GitHub security/coding improvement checklist.
 
 ## License
 GPL-3.0
