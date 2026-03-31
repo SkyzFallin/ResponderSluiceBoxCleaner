@@ -2,6 +2,12 @@
   <img src="banner.svg" alt="ResponderSluiceBoxCleaner Banner" width="100%"/>
 </p>
 
+![Bash](https://img.shields.io/badge/Bash-4EAA25?style=flat-square&logo=gnubash&logoColor=white)
+![Pentest](https://img.shields.io/badge/Pentest-FF0000?style=flat-square&logo=hackthebox&logoColor=white)
+![Platform](https://img.shields.io/badge/Platform-Linux-FCC624?style=flat-square&logo=linux&logoColor=black)
+![License: MIT](https://img.shields.io/badge/License-MIT-blue?style=flat-square)
+![Author](https://img.shields.io/badge/Author-SkyzFallin-ce9178?style=flat-square&logo=github&logoColor=white)
+
 # ResponderSluiceBoxCleaner (RSBC)
 
 Like panning for gold — RSBC sifts through the pile of Responder hash captures, filters out the duplicates, and leaves you with clean nuggets ready to crack.
