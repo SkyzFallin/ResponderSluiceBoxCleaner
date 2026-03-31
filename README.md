@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="banner.svg" alt="ResponderSluiceBoxCleaner Banner" width="100%"/>
+</p>
+
 # ResponderSluiceBoxCleaner (RSBC)
 
 Like panning for gold — RSBC sifts through the pile of Responder hash captures, filters out the duplicates, and leaves you with clean nuggets ready to crack.
